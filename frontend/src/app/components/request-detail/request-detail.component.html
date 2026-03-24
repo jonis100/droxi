@@ -1,0 +1,48 @@
+@if (request) {
+  <div class="header">
+    <a mat-button routerLink="/dashboard">
+      <mat-icon>arrow_back</mat-icon> Back
+    </a>
+    <h2>Request for Patient {{ request.patient_id }}</h2>
+    <mat-chip>{{ request.department }}</mat-chip>
+    <mat-chip [class.closed]="request.status === 'Closed'">{{ request.status }}</mat-chip>
+  </div>
+
+  <div class="items-grid">
+    @for (item of request.items; track item.id) {
+      <mat-card [class.closed-item]="item.status === 'Closed'">
+        <mat-card-header>
+          <mat-card-title>Item {{ item.external_id }}</mat-card-title>
+          <mat-card-subtitle>
+            <mat-chip [class.closed]="item.status === 'Closed'">{{ item.status }}</mat-chip>
+          </mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <p><strong>Message:</strong>
+            @if (item.status === 'Closed') {
+              <span class="closed-label">N/A</span>
+            } @else {
+              {{ item.message_text }}
+            }
+          </p>
+          <p><strong>Medications:</strong>
+            @if (item.status === 'Closed') {
+              <span class="closed-label">N/A</span>
+            } @else if (item.medications && item.medications.length > 0) {
+              <ul>
+                @for (med of item.medications; track med) {
+                  <li>{{ med }}</li>
+                }
+              </ul>
+            } @else {
+              —
+            }
+          </p>
+          <p class="timestamp">Updated: {{ item.updated_at | date:'medium' }}</p>
+        </mat-card-content>
+      </mat-card>
+    }
+  </div>
+} @else {
+  <p>Loading...</p>
+}

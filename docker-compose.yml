@@ -1,0 +1,105 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-clinic_inbox}
+      POSTGRES_USER: ${POSTGRES_USER:-clinic}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-clinic_pass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-clinic} -d ${POSTGRES_DB:-clinic_inbox}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-clinic}:${POSTGRES_PASSWORD:-clinic_pass}@db:5432/${POSTGRES_DB:-clinic_inbox}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:4200","http://localhost"]}
+      PYTHONPATH: /backend
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    develop:
+      watch:
+        - action: sync
+          path: ./backend
+          target: /backend
+          ignore:
+            - __pycache__/
+            - "*.pyc"
+            - "*.pyo"
+        - action: rebuild
+          path: ./backend/requirements.txt
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "4200:80"
+    depends_on:
+      - backend
+    develop:
+      watch:
+        - action: rebuild
+          path: ./frontend/src
+        - action: rebuild
+          path: ./frontend/package.json
+
+  # ── Load testing with k6 ──────────────────────────────────
+  k6-health:
+    image: grafana/k6:latest
+    profiles: ["load-test"]
+    volumes:
+      - ./load-tests:/scripts
+      - ./load-tests/reports:/report
+    environment:
+      BASE_URL: http://backend:8000
+    command: run --summary-trend-stats="avg,min,med,max,p(90),p(95),p(99)" --out json=/report/k6-health-report.json /scripts/health-check.js
+    depends_on:
+      - backend
+
+  k6-batch:
+    image: grafana/k6:latest
+    profiles: ["load-test"]
+    volumes:
+      - ./load-tests:/scripts
+      - ./load-tests/reports:/report
+    environment:
+      BASE_URL: http://backend:8000
+    command: run --summary-trend-stats="avg,min,med,max,p(90),p(95),p(99)" --out json=/report/k6-batch-report.json /scripts/batch-ingest.js
+    depends_on:
+      - backend
+
+  k6-browse:
+    image: grafana/k6:latest
+    profiles: ["load-test"]
+    volumes:
+      - ./load-tests:/scripts
+      - ./load-tests/reports:/report
+    environment:
+      BASE_URL: http://backend:8000
+    command: run --summary-trend-stats="avg,min,med,max,p(90),p(95),p(99)" --out json=/report/k6-browse-report.json /scripts/browse-requests.js
+    depends_on:
+      - backend
+
+  k6-full:
+    image: grafana/k6:latest
+    profiles: ["load-test"]
+    volumes:
+      - ./load-tests:/scripts
+      - ./load-tests/reports:/report
+    environment:
+      BASE_URL: http://backend:8000
+    command: run --summary-trend-stats="avg,min,med,max,p(90),p(95),p(99)" --out json=/report/k6-full-report.json /scripts/full-load.js
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

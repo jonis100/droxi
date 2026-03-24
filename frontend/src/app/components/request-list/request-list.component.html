@@ -1,0 +1,123 @@
+<div class="filter-bar">
+  <mat-form-field>
+    <mat-label>Department</mat-label>
+    <mat-select [(ngModel)]="selectedDepartment" (selectionChange)="onDepartmentChange()">
+      <mat-option value="">All Departments</mat-option>
+      @for (dept of departments; track dept) {
+        <mat-option [value]="dept">{{ dept }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+</div>
+
+<table mat-table [dataSource]="requests()" multiTemplateDataRows>
+  <ng-container matColumnDef="patient_id">
+    <th mat-header-cell *matHeaderCellDef>Patient ID</th>
+    <td mat-cell *matCellDef="let row">{{ row.patient_id }}</td>
+  </ng-container>
+
+  <ng-container matColumnDef="department">
+    <th mat-header-cell *matHeaderCellDef>Department</th>
+    <td mat-cell *matCellDef="let row">
+      <mat-chip>{{ row.department }}</mat-chip>
+    </td>
+  </ng-container>
+
+  <ng-container matColumnDef="open_item_count">
+    <th mat-header-cell *matHeaderCellDef>Open Items</th>
+    <td mat-cell *matCellDef="let row">
+      <mat-chip>{{ row.open_item_count }}</mat-chip>
+    </td>
+  </ng-container>
+
+  <ng-container matColumnDef="status">
+    <th mat-header-cell *matHeaderCellDef>Status</th>
+    <td mat-cell *matCellDef="let row">
+      <mat-chip [class.closed]="row.status === 'Closed'">{{ row.status }}</mat-chip>
+    </td>
+  </ng-container>
+
+  <ng-container matColumnDef="updated_at">
+    <th mat-header-cell *matHeaderCellDef>Last Updated</th>
+    <td mat-cell *matCellDef="let row">{{ row.updated_at | date:'medium' }}</td>
+  </ng-container>
+
+  <ng-container matColumnDef="expand">
+    <th mat-header-cell *matHeaderCellDef></th>
+    <td mat-cell *matCellDef="let row">
+      <mat-icon>{{ expandedRequest()?.id === row.id ? 'expand_less' : 'expand_more' }}</mat-icon>
+    </td>
+  </ng-container>
+
+  <!-- Expanded detail row -->
+  <ng-container matColumnDef="expandedDetail">
+    <td mat-cell *matCellDef="let row" [attr.colspan]="displayedColumns.length">
+      <div class="detail-row" [@detailExpand]="expandedRequest()?.id === row.id ? 'expanded' : 'collapsed'">
+        @if (expandedRequest()?.id === row.id) {
+          @if (expandedRequest()!.items && expandedRequest()!.items!.length > 0) {
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th>External ID</th>
+                  <th>Status</th>
+                  <th>Message</th>
+                  <th>Medications</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of expandedRequest()!.items!; track item.id) {
+                  <tr [class.closed-item]="item.status === 'Closed'">
+                    <td>{{ item.external_id }}</td>
+                    <td>
+                      <mat-chip [class.closed]="item.status === 'Closed'">{{ item.status }}</mat-chip>
+                    </td>
+                    <td>
+                      @if (item.status === 'Closed') {
+                        <span class="closed-label">N/A</span>
+                      } @else {
+                        {{ item.message_text }}
+                      }
+                    </td>
+                    <td>
+                      @if (item.status === 'Closed') {
+                        <span class="closed-label">N/A</span>
+                      } @else if (item.medications && item.medications.length > 0) {
+                        {{ item.medications.join(', ') }}
+                      } @else {
+                        —
+                      }
+                    </td>
+                    <td class="timestamp">{{ item.updated_at | date:'medium' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="empty-label">No items for this request.</p>
+          }
+        }
+      </div>
+    </td>
+  </ng-container>
+
+  <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+  <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+      class="request-row"
+      [class.expanded-row]="expandedRequest()?.id === row.id"
+      (click)="toggleRow(row)">
+  </tr>
+  <tr mat-row *matRowDef="let row; columns: ['expandedDetail']" class="detail-expand-row"></tr>
+</table>
+
+@if (requests().length === 0) {
+  <p class="empty-state">No open requests.</p>
+}
+
+<mat-paginator
+  [length]="total()"
+  [pageSize]="pageSize"
+  [pageSizeOptions]="[10, 20, 50]"
+  (page)="onPageChange($event)"
+  showFirstLastButtons>
+</mat-paginator>
