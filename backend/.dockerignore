@@ -4,7 +4,6 @@ __pycache__
 .env
 .git
 .gitignore
-tests/
 venv/
 .venv/
 *.egg-info
