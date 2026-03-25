@@ -53,17 +53,21 @@ def _make_request(
 
 def _make_existing_item(
     external_id="ext-1",
+    patient_id="patient-1",
     department=Department.DERMATOLOGY,
     status=Status.OPEN,
     request_id=None,
+    message_text="Original",
+    medications=None,
 ) -> InboxItem:
     item = MagicMock(spec=InboxItem)
     item.external_id = external_id
+    item.patient_id = patient_id
     item.department = department
     item.status = status
     item.request_id = request_id or uuid.uuid4()
-    item.message_text = "Original"
-    item.medications = ["Aspirin"]
+    item.message_text = message_text
+    item.medications = medications if medications is not None else ["Aspirin"]
     item.closed_at = None
     item.updated_at = None
     return item
@@ -96,7 +100,7 @@ async def test_new_item_creates_request_and_counts(mock_req_repo, mock_item_repo
 @patch("app.services.ingestion_service.inbox_item_repo")
 @patch("app.services.ingestion_service.patient_request_repo")
 async def test_existing_item_is_updated(mock_req_repo, mock_item_repo, mock_sse):
-    db = AsyncMock()
+    db = _mock_db()
     existing = _make_existing_item()
 
     mock_item_repo.get_by_external_id = AsyncMock(return_value=existing)
@@ -115,8 +119,8 @@ async def test_existing_item_is_updated(mock_req_repo, mock_item_repo, mock_sse)
 @patch("app.services.ingestion_service.sse_manager")
 @patch("app.services.ingestion_service.inbox_item_repo")
 @patch("app.services.ingestion_service.patient_request_repo")
-async def test_close_item_clears_content(mock_req_repo, mock_item_repo, mock_sse):
-    db = AsyncMock()
+async def test_close_item_updates_status(mock_req_repo, mock_item_repo, mock_sse):
+    db = _mock_db()
     existing = _make_existing_item(status=Status.OPEN)
 
     mock_item_repo.get_by_external_id = AsyncMock(return_value=existing)
@@ -131,8 +135,6 @@ async def test_close_item_clears_content(mock_req_repo, mock_item_repo, mock_sse
 
     assert result.closed == 1
     assert existing.status == Status.CLOSED
-    assert existing.message_text is None
-    assert existing.medications is None
     assert existing.closed_at is not None
 
 
@@ -215,9 +217,12 @@ async def test_department_reassignment(mock_req_repo, mock_item_repo, mock_sse):
 @patch("app.services.ingestion_service.sse_manager")
 @patch("app.services.ingestion_service.inbox_item_repo")
 @patch("app.services.ingestion_service.patient_request_repo")
-async def test_idempotent_update_no_create(mock_req_repo, mock_item_repo, mock_sse):
+async def test_idempotent_duplicate_is_declined(mock_req_repo, mock_item_repo, mock_sse):
     db = AsyncMock()
-    existing = _make_existing_item()
+    existing = _make_existing_item(
+        message_text="I need help",
+        medications=["Ibuprofen"],
+    )
 
     mock_item_repo.get_by_external_id = AsyncMock(return_value=existing)
     mock_item_repo.count_open_items_for_request = AsyncMock(return_value=1)
@@ -227,7 +232,9 @@ async def test_idempotent_update_no_create(mock_req_repo, mock_item_repo, mock_s
     result = await process_batch(db, [_make_item()])
 
     assert result.created == 0
-    assert result.updated == 1
+    assert result.updated == 0
+    assert len(result.declined) == 1
+    assert "No changes" in result.declined[0].reason
 
 
 @pytest.mark.asyncio
@@ -263,7 +270,7 @@ async def test_sse_broadcast_called_per_department(mock_req_repo, mock_item_repo
 @patch("app.services.ingestion_service.sse_manager")
 @patch("app.services.ingestion_service.inbox_item_repo")
 @patch("app.services.ingestion_service.patient_request_repo")
-async def test_new_closed_item_has_no_content(mock_req_repo, mock_item_repo, mock_sse):
+async def test_new_closed_item_preserves_content(mock_req_repo, mock_item_repo, mock_sse):
     db = _mock_db()
     request = _make_request()
 
@@ -278,7 +285,7 @@ async def test_new_closed_item_has_no_content(mock_req_repo, mock_item_repo, moc
         MockItem.return_value = instance
         await process_batch(db, [_make_item(status=Status.CLOSED, message_text="secret", medications=["Med"])])
 
-    # InboxItem was constructed with message_text=None and medications=None for CLOSED status
     call_kwargs = MockItem.call_args
-    assert call_kwargs.kwargs["message_text"] is None
-    assert call_kwargs.kwargs["medications"] is None
+    assert call_kwargs.kwargs["message_text"] == "secret"
+    assert call_kwargs.kwargs["medications"] == ["Med"]
+    assert call_kwargs.kwargs["status"] == Status.CLOSED

@@ -1,10 +1,6 @@
-import uuid
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch
-
 import pytest
 import pytest_asyncio
-from sqlalchemy import JSON, String, event
+from sqlalchemy import JSON, String
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.types import TypeDecorator
 
@@ -32,12 +28,6 @@ class StringEnum(TypeDecorator):
         if value is None:
             return None
         return self.enum_class(value)
-
-
-# Override JSONB → JSON for SQLite compatibility
-@event.listens_for(Base.metadata, "column_reflect")
-def _setup_column(inspector, table, column_info):
-    pass
 
 
 # Create SQLite async engine for unit tests
