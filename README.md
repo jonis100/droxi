@@ -2,6 +2,8 @@
 
 A system for organizing patient inbox items into consolidated requests per department, with a live dashboard for doctors.
 
+![Clinic Inbox Dashboard](frontend/src/app/assets/demoScreen.png)
+
 ## Quick Start
 
 ```bash
