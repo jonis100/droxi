@@ -1,36 +1,163 @@
-.header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
+// ─── Detail Page Layout ──────────────────────────────────────────────────────
 
-  h2 {
-    margin: 0;
+.detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+// ─── Header ──────────────────────────────────────────────────────────────────
+
+.detail-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--droxi-text-secondary) !important;
+  margin-top: 2px;
+  flex-shrink: 0;
+
+  &:hover {
+    color: var(--droxi-cyan-dark) !important;
   }
 }
 
+.header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--droxi-text-primary);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.header-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+// ─── Items Grid ──────────────────────────────────────────────────────────────
+
 .items-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
 }
 
-.closed-item {
+// ─── Item Card ───────────────────────────────────────────────────────────────
+
+.item-card {
+  background: var(--droxi-card);
+  border: 1px solid var(--droxi-border);
+  border-radius: 12px;
+  box-shadow: 0 1px 6px rgba(13, 27, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: box-shadow 0.15s ease;
+
+  &:hover {
+    box-shadow: 0 4px 16px rgba(13, 27, 42, 0.1);
+  }
+}
+
+.item-closed {
   opacity: 0.6;
+  border-color: #e8ecee;
+  box-shadow: none;
 }
 
-.closed-label {
-  color: #999;
-  font-style: italic;
+.item-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid var(--droxi-border);
+  background: #f8fcfb;
 }
 
-.closed {
-  background-color: #eee;
+.item-id {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--droxi-text-primary);
 }
 
-.timestamp {
+.item-card-body {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+}
+
+.item-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--droxi-text-secondary);
+}
+
+.field-value {
+  font-size: 14px;
+  color: var(--droxi-text-primary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+// ─── Medication Tags ─────────────────────────────────────────────────────────
+
+.med-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.med-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  background: #eef9f8;
+  color: var(--droxi-cyan-dark);
+  border: 1px solid var(--droxi-border);
+  border-radius: 16px;
   font-size: 12px;
-  color: #888;
-  margin-top: 8px;
+  font-weight: 500;
+}
+
+// ─── Card Footer ─────────────────────────────────────────────────────────────
+
+.item-card-footer {
+  padding: 10px 18px;
+  border-top: 1px solid var(--droxi-border);
+  background: #f8fcfb;
+}
+
+// ─── Loading ─────────────────────────────────────────────────────────────────
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 32px;
+  color: var(--droxi-text-muted);
 }
