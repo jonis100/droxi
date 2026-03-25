@@ -76,7 +76,6 @@ async def process_batch(
     now = datetime.now(timezone.utc)
 
     def _track(dept_value: str, request_id) -> None:
-        print(f"Tracking update for dept={dept_value}, request_id={request_id}")
         affected.setdefault(dept_value, set()).add(request_id)
 
     for item_data in items:
@@ -129,6 +128,9 @@ async def process_batch(
             existing.updated_at = now
             _track(existing.department.value, existing.request_id)
             updated += 1
+
+    # Flush so count queries see the newly created/updated items
+    await db.flush()
 
     # Check if any affected requests should be closed
     all_request_ids = {rid for ids in affected.values() for rid in ids}

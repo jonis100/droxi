@@ -31,9 +31,11 @@ export class RequestDetailComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    const id = this.route.snapshot.paramMap.get('id')!;
-    this.api.getRequest(id).subscribe(req => {
-      this.request = req;
+    const id = this.route.snapshot.paramMap.get('id');
+    if (!id) return;
+    this.api.getRequest(id).subscribe({
+      next: req => this.request = req,
+      error: err => console.error('Failed to load request detail', err),
     });
   }
 }
