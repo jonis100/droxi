@@ -39,6 +39,29 @@ async def _maybe_close_request(db: AsyncSession, request_id) -> None:
             request.status = Status.CLOSED
             request.updated_at = datetime.now(timezone.utc)
 
+def _same_object(existing: InboxItem, item_data: InboxItemIngest) -> bool:
+    return (
+        existing.department == item_data.department
+        and existing.message_text == item_data.message_text
+        and existing.medications == item_data.medications
+        and existing.status == item_data.status
+    )
+
+def _validate_update(existing: InboxItem, item_data: InboxItemIngest) -> str | None:
+    """Returns a decline reason if the update should be rejected, otherwise None."""
+    if _same_object(existing, item_data):
+        return "No changes detected for this item."
+    if existing.patient_id != item_data.patient_id:
+        return "patient_id cannot be changed for an existing item."
+    if existing.status == Status.CLOSED:
+        if item_data.department != existing.department:
+            return "A closed item cannot be reassigned to a different department."
+        if item_data.status == Status.OPEN:
+            return "Item is closed and cannot be reopened."
+        if item_data.status == Status.CLOSED:
+            return "Item is already closed."
+    return None
+
 
 async def process_batch(
     db: AsyncSession, items: list[InboxItemIngest]
@@ -73,12 +96,9 @@ async def process_batch(
             affected_departments.add(item_data.department.value)
             created += 1
         else:
-            # Patient ID mismatch
-            if existing.patient_id != item_data.patient_id:
-                declined.append(DeclinedItem(
-                    external_id=item_data.external_id,
-                    reason="patient_id cannot be changed for an existing item.",
-                ))
+            reason = _validate_update(existing, item_data)
+            if reason:
+                declined.append(DeclinedItem(external_id=item_data.external_id, reason=reason))
                 continue
 
             old_dept = existing.department
@@ -96,6 +116,9 @@ async def process_batch(
                 affected_request_ids.add(new_request.id)
                 affected_departments.add(item_data.department.value)
 
+            existing.message_text = item_data.message_text
+            existing.medications = item_data.medications
+
             # Status change to Closed
             if item_data.status == Status.CLOSED and existing.status == Status.OPEN:
                 existing.status = Status.CLOSED
@@ -103,21 +126,6 @@ async def process_batch(
                 affected_request_ids.add(existing.request_id)
                 affected_departments.add(existing.department.value)
                 closed += 1
-            elif item_data.status == Status.OPEN and existing.status == Status.CLOSED:
-                declined.append(DeclinedItem(
-                    external_id=item_data.external_id,
-                    reason="Item is closed and cannot be reopened.",
-                ))
-                continue
-            elif item_data.status == Status.CLOSED and existing.status == Status.CLOSED:
-                declined.append(DeclinedItem(
-                    external_id=item_data.external_id,
-                    reason="Item is already closed.",
-                ))
-                continue
-            else:
-                existing.message_text = item_data.message_text
-                existing.medications = item_data.medications
 
             existing.updated_at = now
             updated += 1
