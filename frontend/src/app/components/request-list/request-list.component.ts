@@ -69,6 +69,10 @@ export class RequestListComponent implements OnInit, OnDestroy {
     this.api.getRequests(dept, 'Open', this.page, this.pageSize).subscribe(res => {
       this.requests.set(res.items);
       this.total.set(res.total);
+      const current = this.expandedRequest();
+      if (current) {
+        this.expandedRequest.set(res.items.find(r => r.id === current.id) ?? null);
+      }
     });
   }
 

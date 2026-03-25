@@ -50,10 +50,10 @@ External System
 
 ### Two-table design
 
-| Table | Purpose |
-|-------|---------|
+| Table              | Purpose                                                                                      |
+| ------------------ | -------------------------------------------------------------------------------------------- |
 | `patient_requests` | One record per patient per department. Groups inbox items. Closed when all items are closed. |
-| `inbox_items` | Individual messages from the external system. Linked to a request via `request_id`. |
+| `inbox_items`      | Individual messages from the external system. Linked to a request via `request_id`.          |
 
 **Why no `patients` or `departments` tables?** Patient ID is an opaque external identifier and departments are a fixed enum. Adding separate tables would be premature normalization with no benefit for this use case. If departments ever need metadata (head doctor, capacity), they can be promoted to a table later.
 
@@ -65,20 +65,21 @@ External System
 
 ## Architecture Decisions & Trade-offs
 
-| Decision | Chosen | Alternative | Rationale |
-|----------|--------|-------------|-----------|
-| Single transaction per batch | Yes | Chunked sub-transactions | Consistency: partial batch processing would leave inconsistent state. Acceptable for expected batch sizes (100-1000 items). |
-| Sequential item processing | Yes | Bulk upsert | Simpler conflict resolution when multiple items in same batch affect same request. Adequate for clinic-scale volumes. |
-| SSE for live updates | Yes | WebSocket / Polling | One-way server→client push is all we need. SSE is simpler (plain HTTP), auto-reconnects, no sticky sessions required. |
-| SSE notify + REST re-fetch | Yes | Push full data via SSE | Keeps the SSE protocol trivial. REST endpoint handles pagination/filtering consistently. Extra round-trip is negligible. |
-| JSONB for medications | Yes | Separate table | Fewer joins; medications are item attributes, not entities needing referential integrity. |
-| No auth for prototype | Yes | JWT/OAuth | Out of scope for prototype. Production would add authentication middleware. |
-| Soft delete via content clearing | Yes | Separate audit table | Matches requirement: "keep the item record for audit." The record itself is the audit trail. |
-| Repository pattern | Yes | Direct queries in services | Separation of concerns. Repositories handle SQL; services handle business logic. Easier to test and swap DB implementations. |
+| Decision                         | Chosen | Alternative                | Rationale                                                                                                                    |
+| -------------------------------- | ------ | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Single transaction per batch     | Yes    | Chunked sub-transactions   | Consistency: partial batch processing would leave inconsistent state. Acceptable for expected batch sizes (100-1000 items).  |
+| Sequential item processing       | Yes    | Bulk upsert                | Simpler conflict resolution when multiple items in same batch affect same request. Adequate for clinic-scale volumes.        |
+| SSE for live updates             | Yes    | WebSocket / Polling        | One-way server→client push is all we need. SSE is simpler (plain HTTP), auto-reconnects, no sticky sessions required.        |
+| SSE notify + REST re-fetch       | Yes    | Push full data via SSE     | Keeps the SSE protocol trivial. REST endpoint handles pagination/filtering consistently. Extra round-trip is negligible.     |
+| JSONB for medications            | Yes    | Separate table             | Fewer joins; medications are item attributes, not entities needing referential integrity.                                    |
+| No auth for prototype            | Yes    | JWT/OAuth                  | Out of scope for prototype. Production would add authentication middleware.                                                  |
+| Soft delete via content clearing | Yes    | Separate audit table       | Matches requirement: "keep the item record for audit." The record itself is the audit trail.                                 |
+| Repository pattern               | Yes    | Direct queries in services | Separation of concerns. Repositories handle SQL; services handle business logic. Easier to test and swap DB implementations. |
 
 ## Assumptions & Constraints
 
 ### Scale
+
 - **Clinics**: 10–50 clinic locations in the network
 - **Patients**: ~1,000 active patients per clinic (~50K total)
 - **Items**: ~10 active items per patient at peak → ~500K total items
@@ -95,7 +96,7 @@ External System
 6. **Request auto-closes when all its items close** — after processing each batch, every affected request is checked; if zero open items remain, the request status becomes `Closed`.
 7. **Departments are a fixed enum** — `Dermatology`, `Radiology`, `Primary`. No runtime configuration or database table for departments.
 8. **`patient_id` is an opaque external identifier** — no `patients` table; the ID is stored as a plain string (`VARCHAR(100)`). No format or pattern validation is enforced.
-9. **No historical change record per inbox item** — when an inbox item is updated (e.g. new content or department), its record is overwritten in place (last-write-wins). No previous versions are stored. The only indicator that an update occurred is the item's `updated_at` timestamp. However, closing an item does **not** wipe the record — the `inbox_items` row is retained (with content cleared) as a soft-delete audit trail. History of *what changed* is not preserved; only the existence of the item is.
+9. **No historical change record per inbox item** — when an inbox item is updated (e.g. new content or department), its record is overwritten in place (last-write-wins). No previous versions are stored. The only indicator that an update occurred is the item's `updated_at` timestamp. However, closing an item does **not** wipe the record — the `inbox_items` row is retained (with content cleared) as a soft-delete audit trail. History of _what changed_ is not preserved; only the existence of the item is.
 
 ### Technical Assumptions
 
@@ -113,10 +114,10 @@ External System
 
 ### Known UI–Data Inconsistencies
 
-1. **Expanded request detail does not live-update** — when a request row is expanded in the dashboard, SSE-triggered refreshes replace the `requests` signal with new object references, but the `expandedRequest` signal still holds the old object. The expanded detail view shows stale data until the user collapses and re-expands the row.
-2. **Closed items visible inside open requests, but invisible once the request closes** — the dashboard only fetches requests with `status = 'Open'` (hardcoded in the frontend). Within an open request, a mix of open and closed items is displayed. However, once the last open item closes, the request auto-closes and disappears entirely from the dashboard — the user can no longer see any of the closed items that belonged to it. There is currently no UI to browse closed/historical requests. As a side effect, the `status` column in the request table will always show `Open`, since closed requests are never returned.
+1. **Closed items visible inside open requests, but invisible once the request closes** — the dashboard only fetches requests with `status = 'Open'` (hardcoded in the frontend). Within an open request, a mix of open and closed items is displayed. However, once the last open item closes, the request auto-closes and disappears entirely from the dashboard — the user can no longer see any of the closed items that belonged to it. There is currently no UI to browse closed/historical requests. As a side effect, the `status` column in the request table will always show `Open`, since closed requests are never returned.
 
 ### Data Ordering
+
 - Batches arrive in roughly chronological order.
 - Within a batch, item order doesn't matter (each is processed independently).
 - Last-write-wins for content updates (no conflict resolution needed at prototype scale).
@@ -159,3 +160,17 @@ External System
 12. **Event sourcing**: For full auditability, store every batch as an immutable event. Rebuild current state by replaying events. Higher complexity but complete history.
 
 13. **API versioning**: `/api/v1/` prefix for backward compatibility as the API evolves.
+
+### Current Pain Points for Scale
+
+14. **Sequential per-item DB lookup in batch processing**: `process_batch` issues one `SELECT` per item (`get_by_external_id`) inside a loop. At 1,000 items/batch this means 1,000+ round-trips per request. Bulk-fetch existing items by `external_id` in a single query and index them in a dict before the loop.
+
+15. **N+1 query on `open_item_count`**: `list_requests` eagerly loads all items per request, then counts open ones in Python. At scale, replace with a SQL subquery or `column_property` that computes the count in the database, avoiding loading all item rows just to count them.
+
+16. **In-memory SSE fan-out**: `SSEManager` holds subscriber queues in process memory. With multiple backend instances behind a load balancer, only the instance that processed the batch sends SSE events — subscribers connected to other instances receive nothing. Requires Redis Pub/Sub or equivalent (see item 1).
+
+17. **Unbounded SSE subscriber list**: `SSEManager._subscribers` grows without limit. If a client disconnects without the `finally` block executing (e.g. process crash), its queue is never removed, leaking memory. Add periodic cleanup or use weak references.
+
+18. **Full table scan on closed requests**: The partial unique index only covers `WHERE status = 'Open'`. Queries filtering by `status = 'Closed'` (e.g. historical views) will require a sequential scan as the table grows. Add a covering index on `(patient_id, department, status)` or time-based partitioning.
+
+19. **No database migration tooling**: Schema is created via `Base.metadata.create_all` on startup, which cannot alter existing tables. Any schema change (new column, index, constraint) requires manual intervention or data loss. Adopt Alembic for versioned migrations before the first production deployment.

@@ -87,14 +87,14 @@ async def test_update_item_content(mock_sse, db: AsyncSession):
 
 @pytest.mark.asyncio
 @patch("app.services.ingestion_service.sse_manager", new_callable=lambda: type("M", (), {"broadcast": AsyncMock()}))
-async def test_close_item_clears_content(mock_sse, db: AsyncSession):
+async def test_close_item_preserves_content(mock_sse, db: AsyncSession):
     await process_batch(db, [_make_item(external_id="ext-1", message_text="Hello", medications=["Aspirin"])])
     await process_batch(db, [_make_item(external_id="ext-1", status=Status.CLOSED)])
 
     item = (await db.execute(select(InboxItem))).scalar_one()
     assert item.status == Status.CLOSED
-    assert item.message_text is None
-    assert item.medications is None
+    assert item.message_text == "I need help"
+    assert item.medications == ["Ibuprofen"]
     assert item.closed_at is not None
 
 

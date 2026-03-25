@@ -39,6 +39,7 @@ async def _maybe_close_request(db: AsyncSession, request_id) -> None:
             request.status = Status.CLOSED
             request.updated_at = datetime.now(timezone.utc)
 
+
 def _same_object(existing: InboxItem, item_data: InboxItemIngest) -> bool:
     return (
         existing.department == item_data.department
@@ -46,6 +47,7 @@ def _same_object(existing: InboxItem, item_data: InboxItemIngest) -> bool:
         and existing.medications == item_data.medications
         and existing.status == item_data.status
     )
+
 
 def _validate_update(existing: InboxItem, item_data: InboxItemIngest) -> str | None:
     """Returns a decline reason if the update should be rejected, otherwise None."""
@@ -70,9 +72,12 @@ async def process_batch(
     updated = 0
     closed = 0
     declined: list[DeclinedItem] = []
-    affected_request_ids: set = set()
-    affected_departments: set[str] = set()
+    affected: dict[str, set] = {}  # department -> set of request IDs
     now = datetime.now(timezone.utc)
+
+    def _track(dept_value: str, request_id) -> None:
+        print(f"Tracking update for dept={dept_value}, request_id={request_id}")
+        affected.setdefault(dept_value, set()).add(request_id)
 
     for item_data in items:
         existing = await inbox_item_repo.get_by_external_id(db, item_data.external_id)
@@ -92,8 +97,7 @@ async def process_batch(
                 closed_at=now if item_data.status == Status.CLOSED else None,
             )
             db.add(new_item)
-            affected_request_ids.add(request.id)
-            affected_departments.add(item_data.department.value)
+            _track(item_data.department.value, request.id)
             created += 1
         else:
             reason = _validate_update(existing, item_data)
@@ -106,15 +110,12 @@ async def process_batch(
 
             # Department reassignment
             if old_dept != item_data.department:
-                affected_request_ids.add(old_request_id)
-                affected_departments.add(old_dept.value)
+                _track(old_dept.value, old_request_id)
                 new_request = await _find_or_create_open_request(
                     db, item_data.patient_id, item_data.department
                 )
                 existing.request_id = new_request.id
                 existing.department = item_data.department
-                affected_request_ids.add(new_request.id)
-                affected_departments.add(item_data.department.value)
 
             existing.message_text = item_data.message_text
             existing.medications = item_data.medications
@@ -123,24 +124,21 @@ async def process_batch(
             if item_data.status == Status.CLOSED and existing.status == Status.OPEN:
                 existing.status = Status.CLOSED
                 existing.closed_at = now
-                affected_request_ids.add(existing.request_id)
-                affected_departments.add(existing.department.value)
                 closed += 1
 
             existing.updated_at = now
+            _track(existing.department.value, existing.request_id)
             updated += 1
 
     # Check if any affected requests should be closed
-    for request_id in affected_request_ids:
+    all_request_ids = {rid for ids in affected.values() for rid in ids}
+    for request_id in all_request_ids:
         await _maybe_close_request(db, request_id)
 
     await db.commit()
 
     # Broadcast SSE updates per department
-    for dept in affected_departments:
-        request_ids_for_dept = [
-            str(rid) for rid in affected_request_ids
-        ]
-        await sse_manager.broadcast(dept, request_ids_for_dept)
+    for dept, request_ids in affected.items():
+        await sse_manager.broadcast(dept, [str(rid) for rid in request_ids])
 
     return BatchIngestResponse(created=created, updated=updated, closed=closed, declined=declined)
