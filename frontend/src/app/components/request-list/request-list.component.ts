@@ -66,13 +66,16 @@ export class RequestListComponent implements OnInit, OnDestroy {
 
   loadRequests(): void {
     const dept = this.selectedDepartment || undefined;
-    this.api.getRequests(dept, 'Open', this.page, this.pageSize).subscribe(res => {
-      this.requests.set(res.items);
-      this.total.set(res.total);
-      const current = this.expandedRequest();
-      if (current) {
-        this.expandedRequest.set(res.items.find(r => r.id === current.id) ?? null);
-      }
+    this.api.getRequests(dept, 'Open', this.page, this.pageSize).subscribe({
+      next: res => {
+        this.requests.set(res.items);
+        this.total.set(res.total);
+        const current = this.expandedRequest();
+        if (current) {
+          this.expandedRequest.set(res.items.find(r => r.id === current.id) ?? null);
+        }
+      },
+      error: err => console.error('Failed to load requests', err),
     });
   }
 

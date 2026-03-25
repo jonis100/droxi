@@ -73,7 +73,7 @@ External System
 | SSE notify + REST re-fetch       | Yes    | Push full data via SSE     | Keeps the SSE protocol trivial. REST endpoint handles pagination/filtering consistently. Extra round-trip is negligible.     |
 | JSONB for medications            | Yes    | Separate table             | Fewer joins; medications are item attributes, not entities needing referential integrity.                                    |
 | No auth for prototype            | Yes    | JWT/OAuth                  | Out of scope for prototype. Production would add authentication middleware.                                                  |
-| Soft delete via content clearing | Yes    | Separate audit table       | Matches requirement: "keep the item record for audit." The record itself is the audit trail.                                 |
+| Soft delete via status flag      | Yes    | Separate audit table       | Matches requirement: "keep the item record for audit." Content is preserved in DB; the frontend hides it for closed items.   |
 | Repository pattern               | Yes    | Direct queries in services | Separation of concerns. Repositories handle SQL; services handle business logic. Easier to test and swap DB implementations. |
 
 ## Assumptions & Constraints
@@ -91,7 +91,7 @@ External System
 1. **`external_id` is the sole item identifier** — each inbox item is uniquely identified by the `external_id` provided by the external system. This is the key used for idempotent upsert during batch ingestion (unique constraint on `inbox_items.external_id`).
 2. **One open request per patient per department** — enforced by a partial unique index (`WHERE status = 'Open'`). Multiple closed (historical) requests can coexist for the same patient+department pair.
 3. **Closure is terminal** — a closed item is never reopened; a closed request is never reopened. New items for the same patient+department create a new request.
-4. **Content is cleared on item closure** — when an item transitions to `Closed`, its `message_text` and `medications` are set to `NULL`. The item record itself serves as the audit trail (soft delete).
+4. **Content is preserved on item closure** — when an item transitions to `Closed`, its `message_text` and `medications` remain in the database for audit purposes. The frontend hides closed-item content (displays "N/A") so doctors see a clean active view, but the data is retained server-side.
 5. **Department reassignment preserves item identity** — the same `external_id` can move to a different department. The item is detached from the old request and attached to an open request in the new department (created if needed). If the old request has no remaining open items, it auto-closes.
 6. **Request auto-closes when all its items close** — after processing each batch, every affected request is checked; if zero open items remain, the request status becomes `Closed`.
 7. **Departments are a fixed enum** — `Dermatology`, `Radiology`, `Primary`. No runtime configuration or database table for departments.
@@ -109,8 +109,9 @@ External System
 7. **No field-length validation at the API layer** — while the database columns have length limits (`patient_id` 100 chars, `external_id` 255 chars), the Pydantic schemas do not enforce these limits. Oversized values will fail at the database level with an unhandled error.
 8. **Medications are unvalidated** — accepted as a JSON list of strings with no constraints on list length, string length, or content. No drug-name validation or deduplication.
 9. **SSE subscriptions are unauthenticated and unfiltered by role** — any client can subscribe to any department's events or to all departments at once. Filtering is optional via a `department` query parameter.
-10. **Optimistic concurrency via database constraints** — no pessimistic locks. The partial unique index on open requests handles race conditions: on `IntegrityError`, the service retries by fetching the existing open request.
-11. **Sequential batch processing assumed** — no concurrent batch ingestion protection beyond the unique constraints. The prototype assumes batches arrive and are processed one at a time.
+10. **Batch response counters are non-exclusive** — the `updated` and `closed` counters in `BatchIngestResponse` are counted separately. An item that is both updated and closed in the same batch will increment both counters. The total items processed is `created + declined`, plus items that were updated and/or closed (which may overlap).
+11. **Optimistic concurrency via database constraints** — no pessimistic locks. The partial unique index on open requests handles race conditions: on `IntegrityError`, the service retries by fetching the existing open request.
+12. **Sequential batch processing assumed** — no concurrent batch ingestion protection beyond the unique constraints. The prototype assumes batches arrive and are processed one at a time.
 
 ### Known UI–Data Inconsistencies
 

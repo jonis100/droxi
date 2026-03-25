@@ -72,11 +72,10 @@ async def process_batch(
     updated = 0
     closed = 0
     declined: list[DeclinedItem] = []
-    affected: dict[str, set] = {}  # department -> set of request IDs
+    affected: dict[str, set] = {}
     now = datetime.now(timezone.utc)
 
     def _track(dept_value: str, request_id) -> None:
-        print(f"Tracking update for dept={dept_value}, request_id={request_id}")
         affected.setdefault(dept_value, set()).add(request_id)
 
     for item_data in items:
@@ -108,7 +107,6 @@ async def process_batch(
             old_dept = existing.department
             old_request_id = existing.request_id
 
-            # Department reassignment
             if old_dept != item_data.department:
                 _track(old_dept.value, old_request_id)
                 new_request = await _find_or_create_open_request(
@@ -120,7 +118,6 @@ async def process_batch(
             existing.message_text = item_data.message_text
             existing.medications = item_data.medications
 
-            # Status change to Closed
             if item_data.status == Status.CLOSED and existing.status == Status.OPEN:
                 existing.status = Status.CLOSED
                 existing.closed_at = now
@@ -130,14 +127,14 @@ async def process_batch(
             _track(existing.department.value, existing.request_id)
             updated += 1
 
-    # Check if any affected requests should be closed
+    await db.flush()
+
     all_request_ids = {rid for ids in affected.values() for rid in ids}
     for request_id in all_request_ids:
         await _maybe_close_request(db, request_id)
 
     await db.commit()
 
-    # Broadcast SSE updates per department
     for dept, request_ids in affected.items():
         await sse_manager.broadcast(dept, [str(rid) for rid in request_ids])
 

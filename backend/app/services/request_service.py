@@ -37,23 +37,3 @@ async def list_requests(
         page_size=page_size,
     )
 
-
-async def get_request_detail(
-    db: AsyncSession, request_id: uuid.UUID
-) -> PatientRequestDetail | None:
-    request = await patient_request_repo.get_by_id(db, request_id)
-    if request is None:
-        return None
-
-    open_count = sum(1 for item in request.items if item.status == Status.OPEN)
-
-    return PatientRequestDetail(
-        id=request.id,
-        patient_id=request.patient_id,
-        department=request.department,
-        status=request.status,
-        open_item_count=open_count,
-        created_at=request.created_at,
-        updated_at=request.updated_at,
-        items=[InboxItemResponse.model_validate(item) for item in request.items],
-    )
