@@ -2,17 +2,16 @@ import { Component, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
-import { animate, state, style, transition, trigger } from '@angular/animations';
-
 import { ApiService } from '../../services/api.service';
 import { SseService } from '../../services/sse.service';
 import { Department, PatientRequest } from '../../models/patient-request.model';
+import { DeptClassPipe } from '../../pipes/dept-class.pipe';
+import { StatusClassPipe } from '../../pipes/status-class.pipe';
 
 @Component({
   selector: 'app-request-list',
@@ -20,21 +19,15 @@ import { Department, PatientRequest } from '../../models/patient-request.model';
     CommonModule,
     MatTableModule,
     MatPaginatorModule,
-    MatChipsModule,
     MatIconModule,
     MatSelectModule,
     MatFormFieldModule,
     FormsModule,
+    DeptClassPipe,
+    StatusClassPipe,
   ],
   templateUrl: './request-list.component.html',
   styleUrl: './request-list.component.scss',
-  animations: [
-    trigger('detailExpand', [
-      state('collapsed,void', style({ height: '0px', minHeight: '0' })),
-      state('expanded', style({ height: '*' })),
-      transition('expanded <=> collapsed', animate('225ms cubic-bezier(0.4, 0.0, 0.2, 1)')),
-    ]),
-  ],
 })
 export class RequestListComponent implements OnInit, OnDestroy {
   departments: Department[] = ['Dermatology', 'Radiology', 'Primary'];

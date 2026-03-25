@@ -1,87 +1,221 @@
+// ─── Page Header ─────────────────────────────────────────────────────────────
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--droxi-text-primary);
+  margin: 0 0 4px;
+  letter-spacing: -0.02em;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: var(--droxi-text-secondary);
+  margin: 0;
+}
+
+// ─── Filter Bar ───────────────────────────────────────────────────────────────
+
 .filter-bar {
   display: flex;
   gap: 16px;
-  margin-bottom: 8px;
+  margin-bottom: 20px;
 
-  mat-form-field {
-    width: 220px;
+  .dept-filter {
+    width: 240px;
   }
 }
 
-table {
-  width: 100%;
+// ─── Table Container ──────────────────────────────────────────────────────────
+
+.table-container {
+  background: var(--droxi-card);
+  border-radius: 12px;
+  border: 1px solid var(--droxi-border);
+  overflow: hidden;
+  box-shadow: 0 1px 6px rgba(13, 27, 42, 0.06);
+
+  table {
+    width: 100%;
+  }
 }
+
+// ─── Table Rows ──────────────────────────────────────────────────────────────
 
 .request-row {
   cursor: pointer;
+  transition: background-color 0.12s ease;
 
-  &:hover {
-    background-color: rgba(0, 0, 0, 0.04);
+  td {
+    border-bottom: 1px solid var(--droxi-border);
   }
 }
 
-.expanded-row {
-  background-color: rgba(0, 0, 0, 0.04);
+// Hover/expanded overrides use compound selectors for specificity over Material defaults
+.request-row.mat-mdc-row:hover {
+  background-color: #f5fcfb;
+}
+
+.expanded-row.mat-mdc-row {
+  background-color: #eef9f8;
+  border-left: 3px solid var(--droxi-cyan);
 }
 
 .detail-expand-row {
   height: 0;
+}
 
-  td {
-    padding: 0;
-    border-bottom-width: 0;
-  }
+// Compound selector avoids !important for zeroing out Material cell padding
+.detail-expand-row.mat-mdc-row td.mat-mdc-cell {
+  padding: 0;
+  border-bottom-width: 0;
 }
 
 .detail-row {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 225ms cubic-bezier(0.4, 0.0, 0.2, 1);
   overflow: hidden;
+
+  > * {
+    overflow: hidden;
+  }
+
+  &.expanded {
+    grid-template-rows: 1fr;
+  }
+}
+
+// ─── Patient ID ───────────────────────────────────────────────────────────────
+
+.patient-id {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--droxi-text-primary);
+}
+
+// ─── Count Badge ─────────────────────────────────────────────────────────────
+
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 8px;
+  background: var(--droxi-cyan-light);
+  color: var(--droxi-cyan-dark);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+// ─── Expand Icon ─────────────────────────────────────────────────────────────
+
+.expand-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--droxi-text-muted);
+  transition: transform 0.2s ease;
+
+  &.rotated {
+    transform: rotate(180deg);
+    color: var(--droxi-cyan-dark);
+  }
+}
+
+// ─── Inner Items Table ───────────────────────────────────────────────────────
+
+.items-container {
+  padding: 0 16px 16px;
 }
 
 .items-table {
   width: 100%;
   border-collapse: collapse;
-  margin: 8px 0 16px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--droxi-border);
 
-  th, td {
-    padding: 8px 16px;
+  th,
+  td {
+    padding: 10px 16px;
     text-align: left;
-    border-bottom: 1px solid #e0e0e0;
   }
 
   th {
-    font-weight: 500;
-    color: #666;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--droxi-text-secondary);
+    background: #f0f8f7;
+    border-bottom: 1px solid var(--droxi-border);
+  }
+
+  td {
     font-size: 13px;
-    background-color: #fafafa;
+    color: var(--droxi-text-primary);
+    border-bottom: 1px solid var(--droxi-border);
+  }
+
+  tr:last-child td {
+    border-bottom: none;
   }
 }
 
 .closed-item {
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
-.closed {
-  background-color: #eee;
-}
-
-.closed-label {
-  color: #999;
-  font-style: italic;
-}
-
-.timestamp {
+.mono {
+  font-family: 'Roboto Mono', monospace;
   font-size: 12px;
-  color: #888;
+}
+
+.med-list {
+  font-size: 13px;
+}
+
+// ─── Empty States ────────────────────────────────────────────────────────────
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 32px;
+  color: var(--droxi-text-muted);
+
+  .empty-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 12px;
+    opacity: 0.4;
+  }
+
+  p {
+    margin: 0;
+    font-size: 15px;
+  }
 }
 
 .empty-label {
   padding: 16px;
-  color: #666;
+  color: var(--droxi-text-muted);
   text-align: center;
+  font-size: 13px;
+  font-style: italic;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 32px;
-  color: #666;
+// ─── Paginator ───────────────────────────────────────────────────────────────
+
+.paginator-wrap {
+  margin-top: 8px;
 }

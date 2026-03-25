@@ -1,23 +1,23 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
-import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 
 import { ApiService } from '../../services/api.service';
 import { PatientRequest } from '../../models/patient-request.model';
+import { DeptClassPipe } from '../../pipes/dept-class.pipe';
+import { StatusClassPipe } from '../../pipes/status-class.pipe';
 
 @Component({
   selector: 'app-request-detail',
   imports: [
     CommonModule,
     RouterModule,
-    MatCardModule,
     MatButtonModule,
-    MatChipsModule,
     MatIconModule,
+    DeptClassPipe,
+    StatusClassPipe,
   ],
   templateUrl: './request-detail.component.html',
   styleUrl: './request-detail.component.scss',

@@ -19,17 +19,17 @@ docker-compose up --build
 
 ## Architecture
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for system design, data model, trade-offs, and scaling guidelines.
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for system design, data model, trade-offs, and scaling guidelines.
 
 ## Tech Stack
 
-| Component      | Technology                                            |
-| -------------- | ----------------------------------------------------- |
-| Backend        | Python 3.12, FastAPI, SQLAlchemy 2.0 (async)          |
-| Database       | PostgreSQL 16                                         |
-| Frontend       | Angular 19, Angular Material                          |
-| Live updates   | Server-Sent Events (SSE)                              |
-| Infrastructure | Docker, Docker Compose                                |
+| Component      | Technology                                   |
+| -------------- | -------------------------------------------- |
+| Backend        | Python 3.12, FastAPI, SQLAlchemy 2.0 (async) |
+| Database       | PostgreSQL 16                                |
+| Frontend       | Angular 19, Angular Material                 |
+| Live updates   | Server-Sent Events (SSE)                     |
+| Infrastructure | Docker, Docker Compose                       |
 
 ## API Endpoints
 
@@ -109,6 +109,39 @@ curl -X POST http://localhost:8000/api/inbox/batch \
     ]
   }'
 ```
+
+## Load Testing
+
+Load tests use [k6](https://k6.io/) via Docker Compose. See [load-tests/TEST-PLAN.md](load-tests/TEST-PLAN.md) for the full plan.
+
+### Run
+
+```bash
+docker-compose --profile load-test run --rm k6-health
+docker-compose --profile load-test run --rm k6-batch
+docker-compose --profile load-test run --rm k6-browse
+docker-compose --profile load-test run --rm k6-full
+```
+
+### Scenarios
+
+| Scenario | Script | VUs | Duration | Purpose |
+| --- | --- | --- | --- | --- |
+| Health check | `health-check.js` | 5 | 30s | Baseline availability |
+| Batch ingestion | `batch-ingest.js` | up to 20 | ~3.5 min | Stress test write path |
+| Dashboard browsing | `browse-requests.js` | up to 50 | ~3 min | Concurrent read load |
+| Full mixed load | `full-load.js` | up to 50 | 3 min | Realistic read/write mix |
+
+### Thresholds
+
+| Metric | Threshold |
+| --- | --- |
+| `http_req_duration` p95 | < 500ms |
+| `http_req_duration` p99 | < 1000ms |
+| `http_req_failed` rate | < 5% |
+| `http_reqs` rate | > 10 req/s |
+
+Reports are written as JSON to `load-tests/reports/`.
 
 ## Project Structure
 
