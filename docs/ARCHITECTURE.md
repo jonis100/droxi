@@ -95,6 +95,7 @@ External System
 6. **Request auto-closes when all its items close** — after processing each batch, every affected request is checked; if zero open items remain, the request status becomes `Closed`.
 7. **Departments are a fixed enum** — `Dermatology`, `Radiology`, `Primary`. No runtime configuration or database table for departments.
 8. **`patient_id` is an opaque external identifier** — no `patients` table; the ID is stored as a plain string (`VARCHAR(100)`). No format or pattern validation is enforced.
+9. **No historical change record per inbox item** — when an inbox item is updated (e.g. new content or department), its record is overwritten in place (last-write-wins). No previous versions are stored. The only indicator that an update occurred is the item's `updated_at` timestamp. However, closing an item does **not** wipe the record — the `inbox_items` row is retained (with content cleared) as a soft-delete audit trail. History of *what changed* is not preserved; only the existence of the item is.
 
 ### Technical Assumptions
 
@@ -102,12 +103,13 @@ External System
 2. **All-or-nothing batch processing** — the entire batch is processed within a single database transaction. If any item fails, the whole batch rolls back. No partial success or per-item error reporting.
 3. **`patient_id` is immutable for an existing `external_id`** — once an inbox item is ingested, its `patient_id` cannot change. If the external system sends the same `external_id` with a different `patient_id`, the item is declined with an error. This prevents silent patient-identity corruption and ensures an item always belongs to the patient it was originally associated with.
 4. **No authentication or authorization** — the prototype has no auth. Any client can ingest batches, query requests, or subscribe to SSE streams.
-5. **No rate limiting** — the batch endpoint accepts unlimited requests. No throttling or API keys.
-6. **No field-length validation at the API layer** — while the database columns have length limits (`patient_id` 100 chars, `external_id` 255 chars), the Pydantic schemas do not enforce these limits. Oversized values will fail at the database level with an unhandled error.
-7. **Medications are unvalidated** — accepted as a JSON list of strings with no constraints on list length, string length, or content. No drug-name validation or deduplication.
-8. **SSE subscriptions are unauthenticated and unfiltered by role** — any client can subscribe to any department's events or to all departments at once. Filtering is optional via a `department` query parameter.
-9. **Optimistic concurrency via database constraints** — no pessimistic locks. The partial unique index on open requests handles race conditions: on `IntegrityError`, the service retries by fetching the existing open request.
-10. **Sequential batch processing assumed** — no concurrent batch ingestion protection beyond the unique constraints. The prototype assumes batches arrive and are processed one at a time.
+5. **Closed item details are UI-hidden, not API-hidden** — the dashboard does not render closed items' content, but the data (message text, medications) is still present in the API response until the item is closed and its content is cleared. UI filtering alone is not a secure mechanism for hiding sensitive data; proper data access control would require server-side filtering or role-based field redaction.
+6. **No rate limiting** — the batch endpoint accepts unlimited requests. No throttling or API keys.
+7. **No field-length validation at the API layer** — while the database columns have length limits (`patient_id` 100 chars, `external_id` 255 chars), the Pydantic schemas do not enforce these limits. Oversized values will fail at the database level with an unhandled error.
+8. **Medications are unvalidated** — accepted as a JSON list of strings with no constraints on list length, string length, or content. No drug-name validation or deduplication.
+9. **SSE subscriptions are unauthenticated and unfiltered by role** — any client can subscribe to any department's events or to all departments at once. Filtering is optional via a `department` query parameter.
+10. **Optimistic concurrency via database constraints** — no pessimistic locks. The partial unique index on open requests handles race conditions: on `IntegrityError`, the service retries by fetching the existing open request.
+11. **Sequential batch processing assumed** — no concurrent batch ingestion protection beyond the unique constraints. The prototype assumes batches arrive and are processed one at a time.
 
 ### Known UI–Data Inconsistencies
 
